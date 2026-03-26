@@ -21,7 +21,7 @@ export APP_PORT=$PORT_WP
 export PMA_PORT=$PORT_PMA
 
 # 5. Config Nginx
-DOMAIN="${PROJECT_NAME}.dev.theo-manya.fr
+DOMAIN="${PROJECT_NAME}.dev.theo-manya.fr"
 CONF_FILE="/etc/nginx/sites-available/${PROJECT_NAME}"
 
 cat <<EON > $CONF_FILE
