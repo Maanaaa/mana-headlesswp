@@ -25,6 +25,7 @@ services:
             && chmod +x wp-cli.phar \
             && mv wp-cli.phar /usr/local/bin/wp
     container_name: ${PROJECT_NAME}-app
+    working_dir: /var/www/html
     restart: always
     depends_on:
       db:

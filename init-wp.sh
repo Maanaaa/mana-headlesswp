@@ -4,41 +4,43 @@ cd /var/www/html
 
 WP="/usr/local/bin/wp"
 
-# 1. On attend que la DB réponde au login WP-CLI (Double sécurité)
-echo "⏳ Vérification finale de la connexion SQL..."
+# 1. Fix Permissions & Git
+chown -R www-data:www-data /var/www/html
+git config --global --add safe.directory /var/www/html
+
+# 2. Attendre la DB proprement
+echo "⏳ Vérification SQL..."
 until $WP db check --dbhost=db --dbname=wordpress --dbuser=root --dbpass="$DB_ROOT_PASSWORD" --allow-root &>/dev/null; do
-  echo "🔄 MariaDB initialise les droits... on attend 3s..."
+  echo "🔄 MariaDB pas encore prête... attente 3s..."
   sleep 3
 done
+echo "✅ DB Connectée !"
 
-# 2. Téléchargement WordPress (via TAR car plus léger en RAM)
+# 3. Téléchargement WordPress (Si vide)
 if [ ! -f wp-settings.php ]; then
-    echo "📥 Téléchargement de WordPress..."
+    echo "📥 Téléchargement WordPress..."
     curl -L -o wordpress.tar.gz https://wordpress.org/latest.tar.gz
     tar -xzf wordpress.tar.gz --strip-components=1
     rm wordpress.tar.gz
 fi
 
-# 3. wp-config.php
+# 4. Config & Install
 if [ ! -f wp-config.php ]; then
-    echo "⚙️ WP-CLI : Création du wp-config..."
+    echo "⚙️ Création wp-config..."
     $WP core config --dbhost=db --dbname=wordpress --dbuser=root --dbpass="$DB_ROOT_PASSWORD" --allow-root --skip-check
 fi
 
-# 4. Installation
 if ! $WP core is-installed --allow-root; then
-    echo "🚀 WP-CLI : Installation du site..."
+    echo "🚀 Installation WordPress..."
     $WP core install --url="https://${PROJECT_NAME}.dev.theo-manya.fr" --title="${PROJECT_NAME}" --admin_user="admin" --admin_password="admin_password" --admin_email="manya.th@icloud.com" --allow-root
 fi
 
-# 5. MU-Plugin
-echo "📦 Gestion du MU-Plugin..."
-mkdir -p wp-content/mu-plugins
-git config --global --add safe.directory /var/www/html
+# 5. Plugin MU
 if [ ! -d "wp-content/mu-plugins/mana-core" ]; then
+    echo "📦 Clonage MU-Plugin..."
+    mkdir -p wp-content/mu-plugins
     git clone https://github.com/Maanaaa/mana-core.git wp-content/mu-plugins/mana-core
 fi
 
-# 6. Droits finaux
 chown -R www-data:www-data /var/www/html
-echo "✨ SETUP INDUSTRIEL TERMINÉ !"
+echo "✨ SETUP TERMINÉ !"
