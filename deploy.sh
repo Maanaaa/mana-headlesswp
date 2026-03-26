@@ -47,6 +47,11 @@ EON
 ln -s $CONF_FILE /etc/nginx/sites-enabled/ 2>/dev/null
 nginx -t && systemctl reload nginx
 
+# 5.5 SSL avec Certbot
+echo "🔒 Obtention du certificat SSL..."
+certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m manya.th@icloud.com --redirect
+echo "✅ Certificat SSL obtenu."
+
 # 6. Lancement Docker (avec les variables exportées)
 docker compose up -d --build
 
