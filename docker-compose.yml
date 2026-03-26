@@ -10,7 +10,12 @@ services:
       MYSQL_DATABASE: wordpress
 
   wordpress:
-    image: dunglas/frankenphp:latest
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM dunglas/frankenphp:latest
+        RUN apt-get update && apt-get install -y git tar curl mariadb-client
+        RUN install-php-extensions mysqli
     container_name: ${PROJECT_NAME}-app
     restart: always
     depends_on:
@@ -23,8 +28,7 @@ services:
     environment:
       PROJECT_NAME: ${PROJECT_NAME}
       DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      PHP_INI_SCAN_DIR: ":/usr/local/etc/php/conf.d"
-      PHP_OPTIONS: "-d memory_limit=512M -d upload_max_filesize=100M -d post_max_size=100M"
+      PHP_OPTIONS: "-d memory_limit=512M"
     entrypoint: ["sh", "-c", "init-wp.sh && frankenphp run --config /etc/caddy/Caddyfile"]
 
   pma:
