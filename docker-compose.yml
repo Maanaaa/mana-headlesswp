@@ -23,6 +23,8 @@ services:
     environment:
       PROJECT_NAME: ${PROJECT_NAME}
       DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      PHP_INI_SCAN_DIR: ":/usr/local/etc/php/conf.d"
+      PHP_OPTIONS: "-d memory_limit=512M -d upload_max_filesize=100M -d post_max_size=100M"
     entrypoint: ["sh", "-c", "init-wp.sh && frankenphp run --config /etc/caddy/Caddyfile"]
 
   pma:
