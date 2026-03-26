@@ -1,32 +1,31 @@
 #!/bin/bash
 
-# 1. Charger les variables
-if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
-else
-    echo "❌ Pas de fichier .env trouvé."
-    exit 1
+# 1. Check netstat
+if ! command -v netstat &> /dev/null; then
+    sudo apt update && sudo apt install net-tools -y
 fi
 
-# 2. Trouver un port libre pour WordPress (dès 8080)
+# 2. Charger les variables existantes
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
+# 3. Trouver ports libres
 PORT_WP=8080
-while netstat -atn | grep -q ":$PORT_WP "; do
-    PORT_WP=$((PORT_WP + 1))
-done
+while netstat -atn | grep -q ":$PORT_WP "; do PORT_WP=$((PORT_WP + 1)); done
 
-# 3. Trouver un port libre pour PHPMyAdmin (dès 9000 pour éviter les collisions)
 PORT_PMA=9000
-while netstat -atn | grep -q ":$PORT_PMA "; do
-    PORT_PMA=$((PORT_PMA + 1))
-done
+while netstat -atn | grep -q ":$PORT_PMA "; do PORT_PMA=$((PORT_PMA + 1)); done
 
-# 4. Injecter les ports dans le .env
-sed -i "s/APP_PORT=.*/APP_PORT=$PORT_WP/" .env || echo "APP_PORT=$PORT_WP" >> .env
-sed -i "s/PMA_PORT=.*/PMA_PORT=$PORT_PMA/" .env || echo "PMA_PORT=$PORT_PMA" >> .env
+# 4. Écrire dans le .env
+sed -i "/APP_PORT=/d" .env && echo "APP_PORT=$PORT_WP" >> .env
+sed -i "/PMA_PORT=/d" .env && echo "PMA_PORT=$PORT_PMA" >> .env
 
-echo "✅ Ports attribués : WP->$PORT_WP | PMA->$PORT_PMA"
+# IMPORTANT : On recharge les variables pour cette session de script
+export APP_PORT=$PORT_WP
+export PMA_PORT=$PORT_PMA
 
-# 5. Config Nginx Hôte
+# 5. Config Nginx
 DOMAIN="${PROJECT_NAME}.tondomaine.com"
 CONF_FILE="/etc/nginx/sites-available/${PROJECT_NAME}"
 
@@ -48,10 +47,11 @@ EON
 ln -s $CONF_FILE /etc/nginx/sites-enabled/ 2>/dev/null
 nginx -t && systemctl reload nginx
 
-# 6. LANCEMENT DOCKER
+# 6. Lancement Docker (avec les variables exportées)
 docker compose up -d --build
 
 echo "🚀 C'est en ligne : http://$DOMAIN"
+echo "🛠 PHPMyAdmin : http://$DOMAIN (Port interne: $PORT_PMA)"
 EOF
 
 chmod +x deploy.sh
