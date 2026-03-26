@@ -8,10 +8,10 @@ WP="/usr/local/bin/wp"
 chown -R www-data:www-data /var/www/html
 git config --global --add safe.directory /var/www/html
 
-# 2. Attendre la DB proprement
+# 2. Attendre la DB avec l'outil natif (pas WP-CLI)
 echo "⏳ Vérification SQL..."
-until $WP db check --dbhost=db --dbname=wordpress --dbuser=root --dbpass="$DB_ROOT_PASSWORD" --allow-root &>/dev/null; do
-  echo "🔄 MariaDB pas encore prête... attente 3s..."
+until mariadb-admin ping -h"db" -u"root" -p"$DB_ROOT_PASSWORD" --silent; do
+  echo "🔄 MariaDB initialise les droits... attente 3s..."
   sleep 3
 done
 echo "✅ DB Connectée !"
