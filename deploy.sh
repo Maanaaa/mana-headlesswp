@@ -25,7 +25,7 @@ else
 fi
 
 # 4. Config Nginx sur l'hôte
-DOMAIN="${PROJECT_NAME}.theo-manya.fr"
+DOMAIN="dev.${PROJECT_NAME}.theo-manya.fr"
 CONF_FILE="/etc/nginx/sites-available/${PROJECT_NAME}"
 
 cat <<EOF > $CONF_FILE
