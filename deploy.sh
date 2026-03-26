@@ -20,7 +20,7 @@ sed -i "/PMA_PORT=/d" .env && echo "PMA_PORT=$PORT_PMA" >> .env
 export APP_PORT=$PORT_WP
 export PMA_PORT=$PORT_PMA
 
-# 5. Config Nginx avec Route /pma
+# 5. Config Nginx
 DOMAIN="dev.${PROJECT_NAME}.theo-manya.fr"
 CONF_FILE="/etc/nginx/sites-available/${PROJECT_NAME}"
 
@@ -29,7 +29,6 @@ server {
     listen 80;
     server_name $DOMAIN;
 
-    # WordPress
     location / {
         proxy_pass http://127.0.0.1:$PORT_WP;
         proxy_set_header Host \$host;
@@ -39,15 +38,12 @@ server {
         client_max_body_size 300M;
     }
 
-    # PHPMyAdmin sécurisé
     location /pma/ {
         proxy_pass http://127.0.0.1:$PORT_PMA/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Rewrite pour que PMA comprenne qu'il est derrière un sous-dossier
         proxy_redirect off;
     }
 }
@@ -56,12 +52,13 @@ EON
 ln -s $CONF_FILE /etc/nginx/sites-enabled/ 2>/dev/null
 nginx -t && systemctl reload nginx
 
-# 6. SSL avec Certbot (Couvre tout le domaine, incluant /pma)
-echo "🔒 Obtention du certificat SSL..."
+# 6. SSL avec Certbot
+echo "🔒 Activation du HTTPS..."
 certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m manya.th@icloud.com --redirect
 
 # 7. Lancement Docker
 docker compose up -d --build
 
-echo "🚀 En ligne : https://$DOMAIN"
+echo "✨ Terminé !"
+echo "🚀 WordPress : https://$DOMAIN"
 echo "🛠 PHPMyAdmin : https://$DOMAIN/pma/"
