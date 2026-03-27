@@ -5,6 +5,27 @@ Scripts pour créer et gérer des environnements WordPress Docker sur le serveur
 
 ---
 
+## Installation
+
+### 1. Cloner le repo
+
+```bash
+git clone https://github.com/Maanaaa/mana-headlesswp.git
+cd mana-headlesswp
+```
+
+### 2. Installer les scripts sur le VPS
+
+```bash
+cp scripts/make-wp.sh ~/bin/make-wp
+chmod +x ~/bin/make-wp
+
+cp scripts/install-mu.sh ~/bin/install-mu
+chmod +x ~/bin/install-mu
+```
+
+---
+
 ## `make-wp <projet>`
 
 Crée un environnement WordPress complet from scratch.
@@ -19,12 +40,6 @@ make-wp monprojet
 - Installe WordPress automatiquement
 - Configure Nginx + SSL (Certbot)
 
-
-**Installation du script sur le VPS :**
-```bash
-cp scripts/make-wp.sh ~/bin/make-wp
-chmod +x ~/bin/make-wp
-```
 
 ---
 
@@ -41,12 +56,6 @@ cd ~/monprojet && install-mu
 - Clone `mana-wp-mu-plugin` depuis GitHub
 
 > ⚠️ À lancer depuis la racine du projet après `make-wp`
-
-**Installation du script sur le VPS :**
-```bash
-cp scripts/install-mu.sh ~/bin/install-mu
-chmod +x ~/bin/install-mu
-```
 
 ---
 
