@@ -36,10 +36,15 @@ make-wp monprojet
 
 **Ce que ça fait :**
 - Clone le repo de config Docker
+- Génère `.env` avec domaine par défaut : `monprojet.dev.theo-manya.fr`
 - Lance les containers (MariaDB, WordPress, WP-CLI, phpMyAdmin)
 - Installe WordPress automatiquement
 - Configure Nginx + SSL (Certbot)
 
+> **✏️ Personnalisation** : Édite `.env` avant `./deploy.sh` pour changer :
+> - `WP_DOMAIN=monprojet.dev.theo-manya.fr`
+> - `CERTBOT_EMAIL=manya.th@icloud.com`
+> - `PMA_PORT=8080`
 
 ---
 
@@ -65,7 +70,10 @@ cd ~/monprojet && install-mu
 # 1. Créer le projet
 make-wp monprojet
 
-# 2. Installer le mu-plugin
+# 2. Personnaliser (optionnel)
+nano ~/monprojet/.env
+
+# 3. Installer le mu-plugin
 cd ~/monprojet && install-mu
 ```
 
