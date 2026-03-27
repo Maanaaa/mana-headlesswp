@@ -1,64 +1,60 @@
 #!/bin/bash
+set -euo pipefail
 
-# 1. Check outils
-if ! command -v netstat &> /dev/null; then
-    sudo apt update && sudo apt install net-tools certbot python3-certbot-nginx -y
+# 1. Outils
+if ! command -v ss >/dev/null 2>&1; then
+  sudo apt update && sudo apt install -y net-tools iproute2 certbot python3-certbot-nginx nginx -y
 fi
 
-# 2. Charger les variables
-if [ -f .env ]; then export $(grep -v '^#' .env | xargs); fi
+# 2. .env check/créé (exemple si absent)
+[ -f .env ] || cat > .env << EOF
+PROJECT_NAME=monprojet
+DB_ROOT_PASSWORD=$(openssl rand -base64 32)
+WP_ADMIN_PASSWORD=$(openssl rand -base64 24)
+EOF
 
-# 3. Trouver ports libres
-PORT_WP=8080
-while netstat -atn | grep -q ":$PORT_WP "; do PORT_WP=$((PORT_WP + 1)); done
-PORT_PMA=9000
-while netstat -atn | grep -q ":$PORT_PMA "; do PORT_PMA=$((PORT_PMA + 1)); done
+# Load .env
+set -a; source .env; set +a
 
-# 4. Écrire et Exporter
-sed -i "/APP_PORT=/d" .env && echo "APP_PORT=$PORT_WP" >> .env
-sed -i "/PMA_PORT=/d" .env && echo "PMA_PORT=$PORT_PMA" >> .env
-export APP_PORT=$PORT_WP
-export PMA_PORT=$PORT_PMA
-
-# 5. Config Nginx
-DOMAIN="${PROJECT_NAME}.dev.theo-manya.fr"
-CONF_FILE="/etc/nginx/sites-available/${PROJECT_NAME}"
-
-cat <<EON > $CONF_FILE
-server {
-    listen 80;
-    server_name $DOMAIN;
-
-    location / {
-        proxy_pass http://127.0.0.1:$PORT_WP;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        client_max_body_size 300M;
-    }
-
-    location /pma/ {
-        proxy_pass http://127.0.0.1:$PORT_PMA/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_redirect off;
-    }
+# 3. Ports libres
+find_port() {
+  local p=$1; while ss -ltn | grep -q ":$p "; do ((p++)); done; echo $p
 }
-EON
+APP_PORT=$(find_port 8080)
+PMA_PORT=$(find_port 9000)
 
-ln -s $CONF_FILE /etc/nginx/sites-enabled/ 2>/dev/null
+sed -i "/^(APP_PORT|PMA_PORT|PMA_ABSOLUTE_URI)=/d" .env
+echo "APP_PORT=$APP_PORT" >> .env
+echo "PMA_PORT=$PMA_PORT" >> .env
+export APP_PORT PMA_PORT
+
+DOMAIN="${PROJECT_NAME}.dev.theo-manya.fr"
+
+# 4. Nginx HTTP
+CONF="/etc/nginx/sites-available/$PROJECT_NAME"
+cat > "$CONF" << EOF
+server {
+  listen 80;
+  server_name $DOMAIN;
+  location / { proxy_pass http://127.0.0.1:$APP_PORT; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; client_max_body_size 300M; }
+  location /pma/ { proxy_pass http://127.0.0.1:$PMA_PORT/; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; proxy_redirect off; }
+}
+EOF
+ln -sf "$CONF" /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 
-# 6. SSL avec Certbot
-echo "🔒 Activation du HTTPS..."
-certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m manya.th@icloud.com --redirect
-
-# 7. Lancement Docker
+# 5. Docker up
 docker compose up -d --build
 
-echo "✨ Terminé !"
-echo "🚀 WordPress : https://$DOMAIN"
-echo "🛠 PHPMyAdmin : https://$DOMAIN/pma/"
+# 6. Wait WP
+echo "⏳ WP ready..."
+timeout 300 sh -c "until curl -sf http://127.0.0.1:$APP_PORT >/dev/null 2>&1; do sleep 2; done; echo OK"
+
+# 7. Certbot
+certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m manya.th@icloud.com --redirect
+
+# 8. PMA HTTPS
+echo "PMA_ABSOLUTE_URI=https://$DOMAIN/pma/" >> .env
+docker compose restart pma
+
+echo "✅ https://$DOMAIN | PMA: https://$DOMAIN/pma/"

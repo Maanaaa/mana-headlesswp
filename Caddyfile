@@ -1,0 +1,16 @@
+{
+  auto_https off
+}
+
+:80 {
+  root * /var/www/html
+  php_fastcgi unix//var/run/php/php-fpm.sock {
+    pool_options read_timeout 300s write_timeout 300s
+  }
+  file_server
+  encode gzip
+  try_files {path} {path}/ /index.php?{query}
+  log {
+    output stderr
+  }
+}

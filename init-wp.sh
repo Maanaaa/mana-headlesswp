@@ -1,46 +1,48 @@
 #!/bin/bash
-set -e
-cd /var/www/html
+set -uo pipefail
 
 WP="/usr/local/bin/wp"
+WP_DIR="/var/www/html"
+cd "$WP_DIR"
 
-# 1. Fix Permissions & Git
-chown -R www-data:www-data /var/www/html
-git config --global --add safe.directory /var/www/html
-
-# 2. Attendre la DB avec l'outil natif (pas WP-CLI)
-echo "⏳ Vérification SQL..."
-until mariadb-admin ping -h"db" -u"root" -p"$DB_ROOT_PASSWORD" --silent; do
-  echo "🔄 MariaDB initialise les droits... attente 3s..."
-  sleep 3
+echo "⏳ Attente MariaDB..."
+until mariadb-admin ping -h"db" -u"root" -p"${DB_ROOT_PASSWORD}" --silent 2>/dev/null || true; do
+  echo "🔄 DB pas prête (sleep 5s)..."
+  sleep 5
 done
-echo "✅ DB Connectée !"
+echo "✅ MariaDB prête !"
 
-# 3. Téléchargement WordPress (Si vide)
 if [ ! -f wp-settings.php ]; then
-    echo "📥 Téléchargement WordPress..."
-    curl -L -o wordpress.tar.gz https://wordpress.org/latest.tar.gz
-    tar -xzf wordpress.tar.gz --strip-components=1
-    rm wordpress.tar.gz
+  echo "📥 WordPress..."
+  curl -fsSL -o /tmp/wp.tar.gz https://wordpress.org/latest.tar.gz
+  tar -xzf /tmp/wp.tar.gz --strip-components=1
+  rm /tmp/wp.tar.gz
 fi
 
-# 4. Config & Install
+chown -R www-data:www-data "$WP_DIR"
+
 if [ ! -f wp-config.php ]; then
-    echo "⚙️ Création wp-config..."
-    $WP core config --dbhost=db --dbname=wordpress --dbuser=root --dbpass="$DB_ROOT_PASSWORD" --allow-root --skip-check
+  echo "⚙️ wp-config..."
+  $WP config create --dbhost=db --dbname=wordpress --dbuser=root --dbpass="${DB_ROOT_PASSWORD}" --allow-root
+  $WP config set WP_HOME "https://${WP_DOMAIN}" --allow-root --raw
+  $WP config set WP_SITEURL "https://${WP_DOMAIN}" --allow-root --raw
 fi
 
 if ! $WP core is-installed --allow-root; then
-    echo "🚀 Installation WordPress..."
-    $WP core install --url="https://${PROJECT_NAME}.dev.theo-manya.fr" --title="${PROJECT_NAME}" --admin_user="admin" --admin_password="admin_password" --admin_email="manya.th@icloud.com" --allow-root
+  echo "🚀 Installation WP..."
+  $WP core install --url="https://${WP_DOMAIN}" --title="${PROJECT_NAME}" \
+    --admin_user=admin --admin_password="${WP_ADMIN_PASSWORD:-admin123}" \
+    --admin_email="manya.th@icloud.com" --allow-root
 fi
 
-# 5. Plugin MU
-if [ ! -d "wp-content/mu-plugins/mana-core" ]; then
-    echo "📦 Clonage MU-Plugin..."
-    mkdir -p wp-content/mu-plugins
-    git clone https://github.com/Maanaaa/mana-core.git wp-content/mu-plugins/mana-core
+MU_DIR="$WP_DIR/wp-content/mu-plugins/mana-core"
+if [ ! -d "$MU_DIR" ]; then
+  echo "📦 mana-core..."
+  mkdir -p wp-content/mu-plugins
+  git config --global safe.directory "$WP_DIR"
+  git clone https://github.com/Maanaaa/mana-core.git "$MU_DIR"
+  chown -R www-data:www-data wp-content
 fi
 
-chown -R www-data:www-data /var/www/html
-echo "✨ SETUP TERMINÉ !"
+chown -R www-data:www-data "$WP_DIR"
+echo "✅ Init terminé !"
