@@ -3,6 +3,7 @@ services:
     image: mariadb:10.11
     container_name: ${PROJECT_NAME}-db
     restart: always
+    command: --skip-ssl
     volumes:
       - db_data:/var/lib/mysql
     environment:
@@ -51,6 +52,7 @@ services:
       WORDPRESS_DB_NAME: wordpress
       WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD}
       PROJECT_NAME: ${PROJECT_NAME}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     user: "33:33"
     entrypoint: ["sh", "-c"]
     command:
@@ -59,16 +61,17 @@ services:
         until [ -f /var/www/html/wp-load.php ]; do sleep 2; done
 
         echo "⏳ Attente DB..."
-        until wp db check 2>/dev/null; do sleep 3; done
+        until wp db check --dbhost=db --dbuser=root --dbpass="${DB_ROOT_PASSWORD}" --dbname=wordpress --allow-root 2>/dev/null; do sleep 3; done
 
-        if ! wp core is-installed 2>/dev/null; then
+        if ! wp core is-installed --allow-root 2>/dev/null; then
           echo "🚀 Install WP..."
           wp core install \
             --url="https://${PROJECT_NAME}.dev.theo-manya.fr" \
             --title="${PROJECT_NAME}" \
             --admin_user=admin \
             --admin_password="${WP_ADMIN_PASSWORD}" \
-            --admin_email="manya.th@icloud.com"
+            --admin_email="manya.th@icloud.com" \
+            --allow-root
         else
           echo "✅ WP déjà installé"
         fi
