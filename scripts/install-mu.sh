@@ -1,14 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-MU_DIR="./html/wp-content/mu-plugins/mana-wp-mu-plugin"
+MU_PLUGINS_DIR="./html/wp-content/mu-plugins"
 
-mkdir -p ./html/wp-content/mu-plugins
+mkdir -p "$MU_PLUGINS_DIR"
 
-if [ -d "$MU_DIR" ]; then
+if [ -f "$MU_PLUGINS_DIR/mana-wp-mu-plugin.php" ]; then
   echo "✅ mu-plugin déjà présent"
 else
   echo "📦 Clonage du mu-plugin..."
-  git clone https://github.com/Maanaaa/mana-wp-mu-plugin.git "$MU_DIR"
+  git clone https://github.com/Maanaaa/mana-wp-mu-plugin.git "$MU_PLUGINS_DIR/."
   echo "✅ mu-plugin installé !"
 fi
