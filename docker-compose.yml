@@ -31,8 +31,8 @@ services:
       WORDPRESS_DB_PASSWORD: ${DB_ROOT_PASSWORD}
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_CONFIG_EXTRA: |
-        define('WP_HOME', 'https://${WP_DOMAIN}');
-        define('WP_SITEURL', 'https://${WP_DOMAIN}');
+        define('WP_HOME', 'https://${PROJECT_NAME}.dev.theo-manya.fr');
+        define('WP_SITEURL', 'https://${PROJECT_NAME}.dev.theo-manya.fr');
 
   wpcli:
     image: wordpress:cli-php8.3
@@ -49,6 +49,8 @@ services:
       WORDPRESS_DB_USER: root
       WORDPRESS_DB_PASSWORD: ${DB_ROOT_PASSWORD}
       WORDPRESS_DB_NAME: wordpress
+      WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD}
+      PROJECT_NAME: ${PROJECT_NAME}
     user: "33:33"
     entrypoint: ["sh", "-c"]
     command:
@@ -57,17 +59,16 @@ services:
         until [ -f /var/www/html/wp-load.php ]; do sleep 2; done
 
         echo "⏳ Attente DB..."
-        until wp db check --allow-root 2>/dev/null; do sleep 3; done
+        until wp db check 2>/dev/null; do sleep 3; done
 
-        if ! wp core is-installed --allow-root 2>/dev/null; then
+        if ! wp core is-installed 2>/dev/null; then
           echo "🚀 Install WP..."
           wp core install \
-            --url="https://${WP_DOMAIN}" \
+            --url="https://${PROJECT_NAME}.dev.theo-manya.fr" \
             --title="${PROJECT_NAME}" \
             --admin_user=admin \
             --admin_password="${WP_ADMIN_PASSWORD}" \
-            --admin_email="manya.th@icloud.com" \
-            --allow-root
+            --admin_email="manya.th@icloud.com"
         else
           echo "✅ WP déjà installé"
         fi
