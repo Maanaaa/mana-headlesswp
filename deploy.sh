@@ -54,7 +54,6 @@ timeout 300 sh -c "until curl -sf http://127.0.0.1:$APP_PORT >/dev/null 2>&1; do
 certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m manya.th@icloud.com --redirect
 
 # 8. PMA HTTPS
-echo "WP_DOMAIN=${PROJET}.dev.theo-manya.fr" >> .env
 echo "PMA_ABSOLUTE_URI=https://$DOMAIN/pma/" >> .env
 docker compose restart pma
 
