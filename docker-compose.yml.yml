@@ -30,6 +30,58 @@ services:
       WORDPRESS_DB_USER: root
       WORDPRESS_DB_PASSWORD: ${DB_ROOT_PASSWORD}
       WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'https://${WP_DOMAIN}');
+        define('WP_SITEURL', 'https://${WP_DOMAIN}');
+
+  wpcli:
+    image: wordpress:cli-php8.3
+    container_name: ${PROJECT_NAME}-wpcli
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./html:/var/www/html
+    working_dir: /var/www/html
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: root
+      WORDPRESS_DB_PASSWORD: ${DB_ROOT_PASSWORD}
+      WORDPRESS_DB_NAME: wordpress
+    user: "33:33"
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "⏳ Attente WP files..."
+        until [ -f /var/www/html/wp-load.php ]; do sleep 2; done
+
+        echo "⏳ Attente DB..."
+        until wp db check --allow-root 2>/dev/null; do sleep 3; done
+
+        if ! wp core is-installed --allow-root 2>/dev/null; then
+          echo "🚀 Install WP..."
+          wp core install \
+            --url="https://${WP_DOMAIN}" \
+            --title="${PROJECT_NAME}" \
+            --admin_user=admin \
+            --admin_password="${WP_ADMIN_PASSWORD}" \
+            --admin_email="manya.th@icloud.com" \
+            --allow-root
+        else
+          echo "✅ WP déjà installé"
+        fi
+
+        MU_DIR=/var/www/html/wp-content/mu-plugins/mana-wp-mu-plugin
+        if [ ! -d "$MU_DIR" ]; then
+          echo "📦 Clone mu-plugin..."
+          mkdir -p /var/www/html/wp-content/mu-plugins
+          git clone https://github.com/Maanaaa/mana-wp-mu-plugin.git "$MU_DIR"
+        else
+          echo "✅ mu-plugin déjà là"
+        fi
+
+        echo "✅ DONE !"
 
   pma:
     image: phpmyadmin:latest
