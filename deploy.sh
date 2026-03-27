@@ -1,60 +1,104 @@
-#!/bin/bash
-set -euo pipefail
+services:
+  db:
+    image: mariadb:10.11
+    container_name: ${PROJECT_NAME}-db
+    restart: always
+    command: --skip-ssl
+    volumes:
+      - db_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: wordpress
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-# 1. Outils
-if ! command -v ss >/dev/null 2>&1; then
-  sudo apt update && sudo apt install -y net-tools iproute2 certbot python3-certbot-nginx nginx -y
-fi
+  wordpress:
+    image: wordpress:6.6-php8.3-apache
+    container_name: ${PROJECT_NAME}-app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT}:80"
+    volumes:
+      - ./html:/var/www/html
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: root
+      WORDPRESS_DB_PASSWORD: ${DB_ROOT_PASSWORD}
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'https://${PROJECT_NAME}.dev.theo-manya.fr');
+        define('WP_SITEURL', 'https://${PROJECT_NAME}.dev.theo-manya.fr');
 
-# 2. .env check/créé (exemple si absent)
-[ -f .env ] || cat > .env << EOF
-PROJECT_NAME=monprojet
-DB_ROOT_PASSWORD=$(openssl rand -base64 32)
-WP_ADMIN_PASSWORD=$(openssl rand -base64 24)
-EOF
+  wpcli:
+    image: wordpress:cli-php8.3
+    container_name: ${PROJECT_NAME}-wpcli
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./html:/var/www/html
+    working_dir: /var/www/html
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: root
+      WORDPRESS_DB_PASSWORD: ${DB_ROOT_PASSWORD}
+      WORDPRESS_DB_NAME: wordpress
+      WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD}
+      PROJECT_NAME: ${PROJECT_NAME}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    user: "33:33"
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "⏳ Attente WP files..."
+        until [ -f /var/www/html/wp-load.php ]; do sleep 2; done
 
-# Load .env
-set -a; source .env; set +a
+        echo "⏳ Attente DB..."
+        until wp db check --dbhost=db --dbuser=root --dbpass="${DB_ROOT_PASSWORD}" --dbname=wordpress --allow-root 2>/dev/null; do sleep 3; done
 
-# 3. Ports libres
-find_port() {
-  local p=$1; while ss -ltn | grep -q ":$p "; do ((p++)); done; echo $p
-}
-APP_PORT=$(find_port 8080)
-PMA_PORT=$(find_port 9000)
+        if ! wp core is-installed --allow-root 2>/dev/null; then
+          echo "🚀 Install WP..."
+          wp core install \
+            --url="https://${PROJECT_NAME}.dev.theo-manya.fr" \
+            --title="${PROJECT_NAME}" \
+            --admin_user=admin \
+            --admin_password="${WP_ADMIN_PASSWORD}" \
+            --admin_email="manya.th@icloud.com" \
+            --allow-root
+        else
+          echo "✅ WP déjà installé"
+        fi
 
-sed -i "/^(APP_PORT|PMA_PORT|PMA_ABSOLUTE_URI)=/d" .env
-echo "APP_PORT=$APP_PORT" >> .env
-echo "PMA_PORT=$PMA_PORT" >> .env
-export APP_PORT PMA_PORT
+        MU_DIR=/var/www/html/wp-content/mu-plugins/mana-wp-mu-plugin
+        if [ ! -d "$MU_DIR" ]; then
+          echo "📦 Clone mu-plugin..."
+          mkdir -p /var/www/html/wp-content/mu-plugins
+          git clone https://github.com/Maanaaa/mana-wp-mu-plugin.git "$MU_DIR"
+        else
+          echo "✅ mu-plugin déjà là"
+        fi
 
-DOMAIN="${PROJECT_NAME}.dev.theo-manya.fr"
+        echo "✅ DONE !"
 
-# 4. Nginx HTTP
-CONF="/etc/nginx/sites-available/$PROJECT_NAME"
-cat > "$CONF" << EOF
-server {
-  listen 80;
-  server_name $DOMAIN;
-  location / { proxy_pass http://127.0.0.1:$APP_PORT; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; client_max_body_size 300M; }
-  location /pma/ { proxy_pass http://127.0.0.1:$PMA_PORT/; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; proxy_redirect off; }
-}
-EOF
-ln -sf "$CONF" /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
+  pma:
+    image: phpmyadmin:latest
+    container_name: ${PROJECT_NAME}-pma
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD}
+    ports:
+      - "${PMA_PORT}:80"
+    depends_on:
+      db:
+        condition: service_healthy
 
-# 5. Docker up
-docker compose up -d --build
-
-# 6. Wait WP
-echo "⏳ WP ready..."
-timeout 300 sh -c "until curl -sf http://127.0.0.1:$APP_PORT >/dev/null 2>&1; do sleep 2; done; echo OK"
-
-# 7. Certbot
-certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m manya.th@icloud.com --redirect
-
-# 8. PMA HTTPS
-echo "PMA_ABSOLUTE_URI=https://$DOMAIN/pma/" >> .env
-docker compose restart pma
-
-echo "✅ https://$DOMAIN | PMA: https://$DOMAIN/pma/"
+volumes:
+  db_data: {}
