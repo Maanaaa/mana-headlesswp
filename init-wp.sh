@@ -40,7 +40,7 @@ if [ ! -d "$MU_DIR" ]; then
   echo "📦 mana-core..."
   mkdir -p wp-content/mu-plugins
   git config --global safe.directory "$WP_DIR"
-  git clone https://github.com/Maanaaa/mana-core.git "$MU_DIR"
+  git clone https://github.com/Maanaaa/mana-wp-mu-plugin.git "$MU_DIR"
   chown -R www-data:www-data wp-content
 fi
 
